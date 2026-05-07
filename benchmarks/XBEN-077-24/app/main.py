@@ -34,18 +34,24 @@ async def get_profile(request: Request):
 
 @app.post("/", response_class=HTMLResponse)
 async def update_profile(
-        request: Request,
-        name: str = Form(...),
-        surname: str = Form(...),
-        address: str = Form(...),
-        image: UploadFile = File(None)
+    request: Request,
+    name: str = Form(...),
+    surname: str = Form(...),
+    address: str = Form(...),
+    image: UploadFile = File(None)
 ):
     profile = schemas.UserProfile(name=name, surname=surname, address=address)
 
     if image:
         image_content = await image.read()
         try:
-            parser = etree.XMLParser(load_dtd=True, resolve_entities=True)
+            # VULNERABILITY FIX: XXE/SSRF vulnerability in XML parsing
+            # Original: parser = etree.XMLParser(load_dtd=True, resolve_entities=True)
+            # This configuration allowed XML External Entity processing, enabling attackers
+            # to define external entities that reference internal/external URLs, causing SSRF.
+            # Fixed: Disable DTD loading, entity resolution, and network access to prevent XXE/SSRF.
+            # Functionality preserved: SVG/XML image parsing still works for legitimate images.
+            parser = etree.XMLParser(load_dtd=False, resolve_entities=False, no_network=True)
             tree = etree.fromstring(image_content, parser)
             profile.image = etree.tostring(tree).decode()
         except etree.XMLSyntaxError as e:
